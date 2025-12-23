@@ -1,0 +1,40 @@
+# https://pre-commit.com
+# https://pre-commit.com/hooks.html
+
+default_language_version:
+  python: python3.13
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 'v5.0.0'
+    hooks:
+      - id: check-added-large-files
+        exclude: |
+          (?x)^(
+            .resources/demo.mp4|
+          )$
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+        exclude: |
+          (?x)^(
+            .*/static/.*|
+            .*/staticfiles/.*|
+            .*\.(js|jsx|tsx|ts|css|scss|svg|png|jpeg|jpg|txt)
+          )$
+      - id: mixed-line-ending
+        exclude: |
+          (?x)^(
+            .*/static/.*|
+            .*/staticfiles/.*|
+            .*\.(js|jsx|tsx|ts|css|scss|svg|png|jpeg|jpg|txt)
+          )$
+      - id: trailing-whitespace
+        exclude: |
+          (?x)^(
+            .*/static/.*|
+            .*/staticfiles/.*|
+            .*\.(js|jsx|tsx|ts|css|scss|svg|png|jpeg|jpg|txt)
+          )$

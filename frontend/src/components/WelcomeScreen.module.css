@@ -1,0 +1,40 @@
+.welcome {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+}
+
+.title {
+  margin-bottom: 20px;
+  color: #333;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin-bottom: 16px;
+}
+
+.suggestions {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+}
+
+.suggestion {
+  background: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  color: #555;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.suggestion:hover {
+  border-color: #764ba2;
+  box-shadow: 0 2px 8px rgba(118, 75, 162, 0.1);
+}
