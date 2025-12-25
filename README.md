@@ -20,7 +20,7 @@
 **QueryGenie** is a complete, production-ready agentic AI platform that demonstrates how to build **enterprise-grade intelligent systems** from the ground up. Unlike typical side projects, QueryGenie is built for **real-world deployment, research, and experimentation**.
 
 
-![QueryGenie Demo](.resources/demo.gif)
+![QueryGenie Demo](https://github.com/galuszkm/query-genie/releases/download/assets/demo.gif)
 
 ---
 
