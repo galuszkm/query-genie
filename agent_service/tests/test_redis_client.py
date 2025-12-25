@@ -75,9 +75,12 @@ class TestIsTaskCancelled:
         mock_redis = AsyncMock()
         mock_redis.exists.return_value = 1
 
-        result = await is_task_cancelled(mock_redis, "task-123")
+        is_cancelled, new_last_check = await is_task_cancelled(
+            mock_redis, "task-123", current_time=10.0, last_check=0.0
+        )
 
-        assert result is True
+        assert is_cancelled is True
+        assert new_last_check == 10.0
         mock_redis.exists.assert_called_once_with("task:task-123:cancelled")
 
     @pytest.mark.asyncio
@@ -86,9 +89,45 @@ class TestIsTaskCancelled:
         mock_redis = AsyncMock()
         mock_redis.exists.return_value = 0
 
-        result = await is_task_cancelled(mock_redis, "task-123")
+        is_cancelled, new_last_check = await is_task_cancelled(
+            mock_redis, "task-123", current_time=10.0, last_check=0.0
+        )
 
-        assert result is False
+        assert is_cancelled is False
+        assert new_last_check == 10.0
+
+    @pytest.mark.asyncio
+    async def test_skips_check_when_interval_not_elapsed(self) -> None:
+        """Test that Redis check is skipped when not enough time has elapsed."""
+        mock_redis = AsyncMock()
+        mock_redis.exists.return_value = 1
+
+        # Current time is only 2 seconds after last check (less than 5 second interval)
+        is_cancelled, new_last_check = await is_task_cancelled(
+            mock_redis, "task-123", current_time=7.0, last_check=5.0
+        )
+
+        # Should return False and not update last_check
+        assert is_cancelled is False
+        assert new_last_check == 5.0
+        # Redis should not have been called
+        mock_redis.exists.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_checks_redis_when_interval_elapsed(self) -> None:
+        """Test that Redis check occurs when enough time has elapsed."""
+        mock_redis = AsyncMock()
+        mock_redis.exists.return_value = 1
+
+        # Current time is 6 seconds after last check (more than 5 second interval)
+        is_cancelled, new_last_check = await is_task_cancelled(
+            mock_redis, "task-123", current_time=11.0, last_check=5.0
+        )
+
+        # Should check Redis and update last_check
+        assert is_cancelled is True
+        assert new_last_check == 11.0
+        mock_redis.exists.assert_called_once_with("task:task-123:cancelled")
 
 
 class TestMarkTaskCancelled:
