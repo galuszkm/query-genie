@@ -59,86 +59,34 @@
 
 QueryGenie implements a distributed, event-driven architecture following industry best practices:
 
-**Architecture Patterns**:
-- 🔄 **Producer-Consumer Pattern**: Backend produces tasks, agent workers consume
-- 📢 **Publish-Subscribe**: Real-time event streaming via Redis pub/sub
-- 🎯 **CQRS (Command Query Responsibility Segregation)**: Separate read/write concerns
-- 🔌 **Adapter Pattern**: MCP protocol abstracts database access
-- 🧱 **Layered Architecture**: Clear separation between API, business logic, and data layers
+**System Flow**
 
-```
-         ┌──────────────────────────────────────────────────────────────────────────────────┐
-         │                          FRONTEND DASHBOARD (React + TS)                         │
-         │           Real-time SSE streaming • Reasoning visualization • Tool tracking      │
-         └──────────────────────────────────────────────────────────────────────────────────┘
-                                                │
-                                                ▼ HTTP/SSE (Port 8080)
-         ┌──────────────────────────────────────────────────────────────────────────────────┐
-         │                              BACKEND API SERVICE                                 │
-         │                                                                                  │
-         │  ┌─────────────────────┐    ┌──────────────────┐    ┌───────────────────────┐    │
-         │  │   FastAPI Gateway   │───>│  Input Sanitizer │───>│   Rate Limiter        │    │
-         │  │   (REST + SSE)      │    │  (Prompt Inj.)   │    │   (SlowAPI)           │    │
-         │  └─────────────────────┘    └──────────────────┘    └───────────────────────┘    │
-         │            │                                                                     │
-         │            ▼                                                                     │
-         │  ┌─────────────────────┐    ┌──────────────────┐    ┌───────────────────────┐    │
-         │  │   CORS Controls     │───>│  Redis Client    │───>│  Task Queue (LPUSH)   │    │
-         │  │  (Origin Whitelist) │    │  (Enqueue)       │    │  Pub/Sub (Subscribe)  │    │
-         │  └─────────────────────┘    └──────────────────┘    └───────────────────────┘    │
-         └──────────────────────────────────────────────────────────────────────────────────┘
-                                                │
-                                                ▼ Redis Queue (agent:tasks)
-         ┌──────────────────────────────────────────────────────────────────────────────────┐
-         │                       REDIS MESSAGE BROKER (Port 6379)                           │
-         │              Task Queue (LPUSH/BRPOP) • Pub/Sub (Channels: task:{id})            │
-         └──────────────────────────────────────────────────────────────────────────────────┘
-             ▲  Pub/Sub Events                  │
-             │                                  ▼ BRPOP (Blocking Pop)
-         ┌───│──────────────────────────────────────────────────────────────────────────────┐
-         │   │                         AGENT SERVICE (Scalable Workers)                     │
-         │   │                                                                              │
-         │   │ ┌──────────────┐    ┌──────────────────┐    ┌─────────────────────────────┐  │
-         │   │ │ Worker Pool  │───>│  Agent Manager   │───>│  Strands Framework          │  │
-         │   │ │ (BRPOP Loop) │    │  (Per Session)   │    │  (Agentic RAG + Tools)      │  │
-         │   │ └──────────────┘    └──────────────────┘    └─────────────────────────────┘  │
-         │   │                              │                            │                  │
-         │   │                              ▼                            ▼                  │
-         │  ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────────────┐  │
-         │  │  Redis Publish  │    │  Session Files   │    │      LLM Providers          │  │
-         │  │  (SSE Events)   │    │  (Persistence)   │    │ (Bedrock / Ollama / OpenAI) │  │
-         │  └─────────────────┘    └──────────────────┘    └─────────────────────────────┘  │
-         │                                  │                            │                  │
-         │                                  ▼                            ▼                  │
-         │                         ┌───────────────────┐   ┌─────────────────────────────┐  │
-         │                         │  Session Cleanup  │   │      MCP Client             │  │
-         │                         │ (TTL Management)  │   │  (Tool Discovery + RPC)     │  │
-         │                         └───────────────────┘   └─────────────────────────────┘  │
-         └──────────────────────────────────────────────────────────────────────────────────┘
-                                                │
-                                                ▼ HTTP + MCP Protocol (Port 8000)
-         ┌──────────────────────────────────────────────────────────────────────────────────┐
-         │                      MCP POSTGRESQL SERVER (Read-Only Layer)                     │
-         │       Schema Discovery • Query Execution • Result Caching • Safety Validation    │
-         └──────────────────────────────────────────────────────────────────────────────────┘
-                                                │
-                                                ▼ asyncpg Connection Pool
-         ┌──────────────────────────────────────────────────────────────────────────────────┐
-         │                          POSTGRESQL DATABASES (Port 5432)                        │
-         │              Multiple Databases • Connection Pooling • Query Optimization        │
-         └──────────────────────────────────────────────────────────────────────────────────┘
-```
+When a user submits a natural language query, the **Frontend** immediately establishes an SSE (Server-Sent Events) connection for real-time feedback. The **Backend API** acts as a lightweight ingress gatekeeper—it validates the request, performs security checks (rate limiting, input sanitization), and pushes a task to the **Redis Queue**. This "fire-and-forget" producer pattern ensures the API remains highly responsive and can handle high concurrency without being blocked by long-running agent reasoning tasks.
 
-### How It Works
+<div align="center" style="margin: 2rem 0">
+<img width="800" src="./docs/archi-overview.svg" alt="Architecture Overview" />
+</div>
 
-1. **User submits natural language question** via the React dashboard
-2. **Backend API** sanitizes input (prompt injection detection), validates, and enqueues task to Redis
-3. **Agent worker** picks up task, creates/retrieves session-specific agent
-4. **AI Agent** reasons about the question, breaks it into steps, selects tools
-5. **MCP Server** validates queries using SQL AST parser (read-only enforcement, SQL injection prevention)
-6. **Agent synthesizes** results from multiple queries into a coherent answer
-7. **Real-time updates** stream back to frontend via SSE as agent progresses
-8. **User sees** complete reasoning chain, tool calls, queries, and final answer
+**Horizontal Scaling**
+
+Once queued, tasks are consumed by the **Agent Service** worker pool using Redis's blocking pop (BRPOP) mechanism. As demand increases, you simply deploy additional worker containers—they automatically connect to the same Redis queue and begin processing tasks. There's no complex load balancer configuration needed. Real-time feedback flows back through **Redis Pub/Sub** channels, where the Backend streams events directly to users' browsers via SSE.
+
+<div align="center" style="margin: 2rem 0">
+<img width="800" src="./docs/scaling.svg" alt="Horizontal Scaling" />
+</div>
+
+**Agent Service Architecture**
+
+The **Agent Service** is the brain of the platform, orchestrated by the **Strands Framework**. Its internal architecture is designed around the "Agent as Tool" pattern, which provides modularity and specialized expertise. When a worker picks up a task, the **Agent Manager** initializes a session-specific environment, retrieving conversation history from **Session Storage** and instantiating the Main Agent. This ensures that every conversation maintains continuity while keeping memory usage efficient through intelligent caching and TTL-based eviction.
+
+The Agent Service is the core intelligence layer, implementing agentic RAG with autonomous reasoning:
+
+<div align="center" style="margin: 2rem 0">
+<img width="800" src="./docs/agent-service-architecture.svg" alt="Agent Service Architecture" />
+</div>
+
+The reasoning process is autonomous: the Main Agent breaks down the user's request and determines which tools or sub-agents to employ. For complex data tasks, it delegates to specialized **Sub-agents**, which run in their own isolated contexts but contribute to the shared workflow. To interact with the database, the agent utilizes an **MCP Client** that communicates with the **MCP Server** via the Model Context Protocol. This abstraction layer is critical—it standardizes tool definitions and strictly enforces read-only access ensuring security. All decisions, tool executions, and results are recorded in a **Workflow Tracker**, which provides the structured data needed to render the visual reasoning steps in the frontend. This composition of specialized agents, standardized tool interfaces, and persistent session state allows Agentic AI service to handle complex, multi-step data analysis tasks reliably.
+
 
 
 ## 📦 Technology Stack

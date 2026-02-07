@@ -15,33 +15,9 @@ The Agent Service is a standalone service that processes AI agent tasks independ
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                                AGENT SERVICE                                     │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────────────────────────────┐  │
-│  │    Worker    │──>│    Agent     │──>│       Strands Agent Framework        │  │
-│  │  (Main Loop) │   │   Manager    │   │     (LLM + Tool Orchestration)       │  │
-│  └──────────────┘   └──────────────┘   └──────────────────────────────────────┘  │
-│         │                  │                           │                         │
-│         ▼                  ▼                           ▼                         │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────────────────────────────┐  │
-│  │    Redis     │   │    File      │   │         Model Providers              │  │
-│  │   Client     │   │   Sessions   │   │     (Bedrock / Ollama / OpenAI)      │  │
-│  └──────────────┘   └──────────────┘   └──────────────────────────────────────┘  │
-│         │                  │                            │                        │
-│         │                  ▼                            ▼                        │
-│         │        ┌───────────────────┐  ┌──────────────────────────────────────┐ │
-│         │        │  Session Cleanup  │  │           MCP Client                 │ │
-│         │        │ (Background Task) │  │     (Tool Discovery + RPC)           │ │
-│         │        └───────────────────┘  └──────────────────────────────────────┘ │
-└─────────┼────────────────────────────────────────────────┼───────────────────────┘
-          │                                                │
-          ▼                                                ▼ HTTP (MCP Protocol)
-    ┌───────────────┐                          ┌──────────────────────────────────┐
-    │     Redis     │                          │        MCP PostgreSQL Server     │
-    │ (Queue/PubSub)│                          │    (Read-only Database Access)   │
-    └───────────────┘                          └──────────────────────────────────┘
-```
+<div align="center" style="margin: 2rem 0">
+<img width="800" src="../docs/agent-service-architecture.svg" alt="Agent Service Architecture" />
+</div>
 
 ## Project Structure
 

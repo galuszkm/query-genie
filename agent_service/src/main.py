@@ -43,6 +43,7 @@ class TaskProcessor:
         """Initialize the task processor."""
         self._redis: redis.Redis | None = None
         self._agent_manager = AgentManager()
+        self._active_tasks: set[asyncio.Task[None]] = set()  # Track running tasks
         self._cleanup_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
@@ -214,7 +215,12 @@ class TaskProcessor:
                 task = await pop_task(self._redis, queue, timeout=0)
 
                 if task:
-                    await self.process_task(task)
+                    # Spawn task in background for concurrent processing
+                    task_coroutine = asyncio.create_task(self.process_task(task))
+                    self._active_tasks.add(task_coroutine)
+
+                    # Remove from set when done (prevents memory leak)
+                    task_coroutine.add_done_callback(self._active_tasks.discard)
 
             except asyncio.CancelledError:
                 logger.info("Worker received shutdown signal")
@@ -227,6 +233,18 @@ class TaskProcessor:
     async def shutdown(self) -> None:
         """Cleanup resources on shutdown."""
         logger.info("Shutting down task processor...")
+
+        # Wait for active tasks to complete (with timeout)
+        if self._active_tasks:
+            logger.info(
+                f"Waiting for {len(self._active_tasks)} active tasks to complete..."
+            )
+            await asyncio.wait(self._active_tasks, timeout=30.0)
+
+            # Cancel any remaining tasks
+            for task in self._active_tasks:
+                if not task.done():
+                    task.cancel()
 
         # Cancel cleanup task
         if self._cleanup_task and not self._cleanup_task.done():
